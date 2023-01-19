@@ -104,16 +104,6 @@ fn main() {
             println!("Mean: {pi}, SE: {se}, STDEV: {stdev}, n: {length}, points: {points_tot}, t: {t} s");
         }
     }
-
-    println!("starting to process...");
-
-    let length = pis.len() as i32;
-    let pi = mean(&pis[..]).unwrap();
-    let stdev = std_deviation(&pis[..]).unwrap();
-    let se = stdev / f64::from(length).sqrt();
-
-    let t = now.elapsed().as_secs();
-    println!("Mean: {pi}, SE: {se}, STDEV: {stdev}, n: {length}, points: {points_tot}, t: {t} s");
 }
 /*
 fn generate_pis(points_tot: i32, n: i32, tx: Sender<f64>) {
