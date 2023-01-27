@@ -1,167 +1,232 @@
 use std::io;
 use rand::prelude::*;
-use std::time::{Duration, Instant};
+use std::time::{Instant};
 use std::thread;
 use std::sync::mpsc;
-// use std::num::Float;
+use std::fs::OpenOptions;
+use std::io::{Error, Write};
 
 fn main() {
-    // println!("Guess the number!");
+    println!("Please enter the number of πs to generate.");
 
+    let mut input = String::new(); // create new String where the input will be saved
 
-    println!("Please input the number of πs to generate.");
-
-    let mut input = String::new();
-
-    io::stdin()
+    io::stdin() // save terminal input to the input String object
         .read_line(&mut input)
+        .expect("Failed to read line"); // this similar to a 'throws' function; if a wrong input is provided, the program will terminate and send this message
+
+    let n: i32 = input.trim().parse() // convert the String input to an i32
+        .expect("Not a number!"); // this similar to a 'throws' function; if the input was not an integer, the program will terminate and send this message
+
+    let now = Instant::now(); // save the current 'instant'
+
+    let mut pis: Vec<f64> = Vec::new(); // create vector to store generated πs
+    let mut circles: Vec<f64> = Vec::new(); // create vector to store generated areas of a circle
+    let mut spheres: Vec<f64> = Vec::new(); // create vector to store generated volumes of a sphere
+
+    // the folling 7 lines have the same structure and function as lines 12 to 19, but the input is now the amount of points per quarter of a square
+    println!("Please enter the number of the number of points per quarter of a square to generate.");
+    let mut points_input = String::new();
+    io::stdin()
+        .read_line(&mut points_input)
         .expect("Failed to read line");
+    let points_tot: i32 = points_input.trim().parse()
+        .expect("Not a number!");
 
-    let mut n: i32 = input.trim().parse()
-        .expect("please give me correct string number!");
+    // the folling 7 lines have the same structure and function as lines 12 to 19, but the input is now the radius of the circle and sphere
+    println!("Please enter the radius of the circle and sphere.");
+    let mut r_input = String::new();
+    io::stdin()
+        .read_line(&mut r_input)
+        .expect("Failed to read line");
+    let r: i32 = r_input.trim().parse()
+        .expect("Not a number!");
 
-    let now = Instant::now();
+    let mut pi_index = 1; // index variable to store the current thread count
 
-    let mut pis = Vec::new();
+    let (tx, rx) = mpsc::channel(); // this are basically 2 objects (tx of type Sender<f64> and rx of type Receiver<f64>) that allow to send and retrieve values from the 'secondary' threads to the main thread; this one is used for the π values
+    let (tx_circ, rx_circ) = mpsc::channel(); // this are basically 2 objects (tx of type Sender<f64> and rx of type Receiver<f64>) that allow to send and retrieve values from the 'secondary' threads to the main thread; this one is used for the circle area values
+    let (tx_sphere, rx_sphere) = mpsc::channel(); // this are basically 2 objects (tx of type Sender<f64> and rx of type Receiver<f64>) that allow to send and retrieve values from the 'secondary' threads to the main thread; this one is used for the sphere volume values
 
-    let points_tot = 1000;
+    let mut handles = vec![]; // a vector used to store the 'handles' of the generated threads; with this we can basically stop the code from the main thread from being executed until the 'secondary' threads are completely done
 
-    let mut pi_index = 1;
+    let threads = 100; // number of threads to generate; the π generation will be split evenly between all the threads, which will run concurrently
+    let cycles_per_thread = n / threads; // this is the number of πs that each thread needs to generate
 
-    let (tx, rx) = mpsc::channel();
-    let mut handles = vec![];
+    //let mut current_pi_count = 0; // this was used to count the current amount of generated πs, in order to show progress of the program
 
-    //let cycles = 10.0 / 
-    let threads = 10;
-    let cycles_per_thread = n / threads;
+    while pi_index <= threads { // repeat this code to generate each thread
+        let tx_temp = tx.clone(); // create a copy of tx (this is needed because the original object is 'owned' by the main thread and can't be used within 'secondary' threads)
+        let tx_circ_temp = tx_circ.clone(); // create a copy of tx_circ
+        let tx_sphere_temp = tx_sphere.clone(); // create a copy of tx_sphere
 
-    let mut current_pi_count = 0;
+        let handle = thread::spawn(move || { // create a thread and save its handle which will be used later
+            let mut pi_index_loc = 1; // index to store the current π count (of this thread)
 
-    while pi_index <= threads {
-        /*
-        let mut i = 1;
-        let mut points_in: f64 = 0.0;
-        while i <= points_tot {
-            let x: f64 = rng.gen();
-            let y: f64 = rng.gen();
+            while pi_index_loc <= cycles_per_thread { // do for each π needed to be generated by this thread
+                let pi = generate_pi(points_tot); // generate a π value
+                let circle = pi * f64::from(r) * f64::from(r); // calculate the area of the circle
+                let sphere = circle * 2.0 * f64::from(r); // calculate the volume of the sphere
 
-            if x * x + y * y <= 1.0 {
-                points_in += 1.0;
-            }
+                tx_temp.send(pi).unwrap(); // send pi to the tx_temp Sender<f64> object
+                tx_circ_temp.send(circle).unwrap(); // send the area of the circle to the tx_circ_temp Sender<f64> object
+                tx_sphere_temp.send(sphere).unwrap(); // send the volume of the sphere to the tx_sphere_temp Sender<f64> object
 
-            // println!("x: {x}, y: {y}");
-            i += 1;
-        }
-
-        // println!("in: {points_in}, total: {n}");
-
-        let pi: f64 = points_in / f64::from(points_tot) * 4.0;
-         */
-        let tx_temp = tx.clone();
-        let handle = thread::spawn(move || {
-            /*
-            let pi = generate_pi(points_tot);
-            tx_temp.send(pi).unwrap();
-             */
-            //generate_pis(points_tot, cycles_per_thread, tx);
-            let mut pi_index_loc = 1;
-
-            while pi_index_loc <= cycles_per_thread {
-                let pi = generate_pi(points_tot);
-                tx_temp.send(pi).unwrap();
-                pi_index_loc += 1;
+                pi_index_loc += 1; // add 1 to the π counter of this thread
+                /*
                 current_pi_count += 1;
                 let progress = f64::from(current_pi_count) / f64::from(n) * 1000.0;
                 println!("{progress}%")
+                 */
+                
             }
 
-            // let mut progress = pis.len() as f64 / f64::from(n) * 100.0; 
-            println!("Finished thread {pi_index} of {threads}");
+            println!("Finished thread {pi_index} of {threads}"); // print when the thread finishes
         });
 
-        handles.push(handle);
-        // pis.push(pi);
-        pi_index += 1;
+        handles.push(handle); // push handle to the handles vector, which will be used later to wait for all thread to be done before executing the remaining code of the main thread
+        pi_index += 1; // add 1 to the threads counter
     }
 
-    for handle in handles {
-        handle.join().unwrap();
+    for handle in handles { // perform this code for each of the handles in the handles vector
+        handle.join().unwrap(); // this code is what I referenced earlier; basically, the main thread will not continued with its execution untill all the threads are done
     }
 
-    for received in rx {
-        // println!("{received}");
-        pis.push(received);
+    // NOTE: this code will only run after all the π values have been generated
+    for received in rx { // for each value that the rx Receiver<f64> gets from the tx Sender<f64> object, store it to the received constant (an f64)
+        pis.push(received); // save the received value to the pis Vec<f64>
 
-        if (pis.len() as i32 == n) {
-            println!("starting to process...");
+        if pis.len() as i32 == n { // once the π count is equal to the desired number of πs to be generated...
+            println!("–––––––––––––––––––––");
 
-            let length = pis.len() as i32;
-            let pi = mean(&pis[..]).unwrap();
-            let stdev = std_deviation(&pis[..]).unwrap();
+            let length = pis.len() as i32; // number of generated πs
+            let pi = mean(&pis[..]).unwrap(); // average of the generated π values stored in 'pis', the Vec<64> object
+            let stdev = std_deviation(&pis[..]).unwrap(); // standard deviation of the generated π values stored in 'pis', the Vec<64> object
+            let se = stdev / f64::from(length).sqrt(); // calculate the standard error of the mean value by dividing the std. dev. by the sqrt. of the number of πs (converted to a float)
+
+            let t = now.elapsed().as_secs(); // elapsed runtime
+            println!("π");
+            println!("Mean: {pi}, SE: {se}, STDEV: {stdev}, n: {length}, points: {points_tot}, t: {t} s"); // print result to the console
+
+            let file_name = "mc_results.txt"; // name of the file where the results will be stored.
+            let mut file = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .append(true)
+                .open(file_name)
+                .expect("Error reading file!");
+            writeln!(file, "Mean: {pi}, SE: {se}, STDEV: {stdev}, n: {length}, points: {points_tot}, t: {t} s") // write results to the file
+                .expect("Error writing to file"); // throw an error if there was a problem writing to the file 
+            break; // break from the loop, so that the main thread can start the processing the results from the areas and volumes
+        }
+    }
+
+    // the following loop essentially does the same as the last one, but for the areas of the circles
+    for received in rx_circ {
+        circles.push(received);
+
+        if circles.len() as i32 == n {
+            println!("–––––––––––––––––––––");
+
+            let length = circles.len() as i32;
+
+            let area = mean(&circles[..]).unwrap();
+            let stdev = std_deviation(&circles[..]).unwrap();
             let se = stdev / f64::from(length).sqrt();
 
             let t = now.elapsed().as_secs();
-            println!("Mean: {pi}, SE: {se}, STDEV: {stdev}, n: {length}, points: {points_tot}, t: {t} s");
+            println!("Circle");
+            println!("Mean: {area}, SE: {se}, STDEV: {stdev}, n: {length}, r: {r}, points: {points_tot}, t: {t} s");
+
+            let file_name = "mc_results_circle.txt";
+            let mut file = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .append(true)
+                .open(file_name)
+                .expect("Error reading file!");
+            writeln!(file, "Mean: {area}, SE: {se}, STDEV: {stdev}, n: {length}, r: {r}, points: {points_tot}, t: {t} s") // writing using the macro 'writeln!'
+                .expect("Error writing to file");
+            break;
+        }
+    }
+
+    // the following loop essentially does the same as the last one, but for the volumes of the spheres
+    for received in rx_sphere {
+        spheres.push(received);
+
+        if spheres.len() as i32 == n {
+            println!("–––––––––––––––––––––");
+
+            let length = spheres.len() as i32;
+
+            let vol = mean(&spheres[..]).unwrap();
+            let stdev = std_deviation(&spheres[..]).unwrap();
+            let se = stdev / f64::from(length).sqrt();
+
+            let t = now.elapsed().as_secs();
+            println!("Sphere");
+            println!("Mean: {vol}, SE: {se}, STDEV: {stdev}, n: {length}, r: {r},  points: {points_tot}, t: {t} s");
+
+            let file_name = "mc_results_sphere.txt";
+            let mut file = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .append(true)
+                .open(file_name)
+                .expect("Error reading file!");
+            writeln!(file, "Mean: {vol}, SE: {se}, STDEV: {stdev}, n: {length}, r: {r}, points: {points_tot}, t: {t} s") // writing using the macro 'writeln!'
+                .expect("Error writing to file");
+            break;
         }
     }
 }
-/*
-fn generate_pis(points_tot: i32, n: i32, tx: Sender<f64>) {
-    let mut pi_index_loc = 1;
 
-    while pi_index_loc <= n {
-        let pi = generate_pi(points_tot);
-        let tx_temp = tx.clone();
-        tx_temp.send(pi).unwrap();
-    }
-    
-}
- */
-
+// function to generate a π value with a specified number of points (takes in an i32 and returns an f64)
 fn generate_pi(points_tot: i32) -> f64 {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::thread_rng(); // the thread random number generator
 
-    let mut i = 1;
-        let mut points_in: f64 = 0.0;
-        while i <= points_tot {
-            let x: f64 = rng.gen();
-            let y: f64 = rng.gen();
+    let mut i = 1; // index to count the number of generated points
+        let mut points_in: f64 = 0.0; // variable to count the number of points that are within the circle
+        while i <= points_tot { // repeat until all points have been generated
+            let x: f64 = rng.gen(); // generate x coordinate
+            let y: f64 = rng.gen(); // generate y coordinate
 
-            if x * x + y * y <= 1.0 {
-                points_in += 1.0;
+            if x * x + y * y <= 1.0 { // test if the point is within the circle
+                points_in += 1.0; // if so, add 1 to the counter of the points within the circle
             }
-
-            // println!("x: {x}, y: {y}");
-            i += 1;
+            i += 1; // add 1 to the counter of the generated points
         }
 
-        // println!("in: {points_in}, total: {n}");
-
-        let pi: f64 = points_in / f64::from(points_tot) * 4.0;
-        // println!("{pi}");
-        return pi;
+        let pi: f64 = points_in / f64::from(points_tot) * 4.0; // calculate the π value
+        return pi; // return the generated π value
 }
 
+// function to calculate the mean of a 'slice' (a part) of a Vec<f64>, returns an 'optional' f64
 fn mean(data: &[f64]) -> Option<f64> {
-    let sum = data.iter().sum::<f64>() as f64;
-    let count = data.len();
+    let sum = data.iter().sum::<f64>() as f64; // sum the values of the 'slice'
+    let count = data.len(); // count the values of the 'slice'
 
     match count {
-        positive if positive > 0 => Some(sum / count as f64),
+        positive if positive > 0 => Some(sum / count as f64), // only return the mean if the 'slice' has a length greater than 0
         _ => None,
     }
 }
 
+// function to calculate the standard deviation of a 'slice' (a part) of a Vec<f64>, returns an 'optional' f64
 fn std_deviation(data: &[f64]) -> Option<f64> {
     match (mean(data), data.len()) {
-        (Some(data_mean), count) if count > 0 => {
-            let variance = data.iter().map(|value| {
+        (Some(data_mean), count) if count > 0 => { // return value if the length of the 'slice' is greater than 0
+            let variance = data.iter().map(|value| { // calculate the variance of the 'slice', by calculating the square of the difference of each value from the mean, then adding all the resultant values, and dividing the result by the amount of numbers within the 'slice'
                 let diff = data_mean - (*value as f64);
 
                 diff * diff
             }).sum::<f64>() / count as f64;
 
-            Some(variance.sqrt())
+            Some(variance.sqrt()) // return the sqrt of the variance
         },
         _ => None
     }
